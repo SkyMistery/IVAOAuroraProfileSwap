@@ -58,7 +58,7 @@ h6 { font-size: 1.00rem; font-weight: 600; color: var(--ivao-light-blue); }
 .app-header { margin-bottom: 1.5rem; }
 .app-title { display: flex; align-items: center; gap: 1rem; }
 .app-title h1 { margin: 0; }
-.app-logo { height: 5.5rem; width: auto; flex: 0 0 auto; }
+.app-logo { height: 7rem; width: auto; flex: 0 0 auto; }
 .app-header p { margin: .5rem 0 0; color: #4a4d5a; max-width: 60ch; }
 
 /* Two-column source/destination layout */
