@@ -11,6 +11,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet" />
     <link href="css/app.css" rel="stylesheet" />
+    <script>
+        // Apply the saved theme before first paint to avoid a flash of the wrong theme.
+        (function () {
+            try {
+                var t = localStorage.getItem("theme");
+                if (t) document.documentElement.dataset.theme = t;
+            } catch (e) { /* localStorage may be blocked; ignore */ }
+        })();
+    </script>
 </head>
 
 <body>
@@ -40,6 +49,18 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        };
+
+        // Persisted UI preferences (theme + language) via localStorage.
+        window.appPrefs = {
+            getTheme: () => { try { return localStorage.getItem("theme") || ""; } catch { return ""; } },
+            setTheme: (v) => {
+                try { localStorage.setItem("theme", v); } catch { /* ignore */ }
+                document.documentElement.dataset.theme = v;
+            },
+            getLang: () => { try { return localStorage.getItem("lang") || ""; } catch { return ""; } },
+            setLang: (v) => { try { localStorage.setItem("lang", v); } catch { /* ignore */ } },
+            scrollToId: (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })
         };
     </script>
 </body>

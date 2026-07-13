@@ -1,33 +1,44 @@
 @namespace AuroraProfileSwapper.Web.Pages
+@using System.IO.Compression
 @inject IJSRuntime JS
 
-<div class="page">
+<div class="page" tabindex="0" @onkeydown="OnKey">
     <header class="app-header">
-        <div class="app-title">
-            <img class="app-logo" src="img/it-symbol.svg" alt="IVAO Italia" />
-            <h1>Aurora Profile Swapper</h1>
+        <div class="header-bar">
+            <div class="app-title">
+                <img class="app-logo" src="@(_isDark ? "img/it-symbol-white.svg" : "img/it-symbol.svg")" alt="IVAO Italia" />
+                <h1>Aurora Profile Swapper</h1>
+            </div>
+            <div class="header-controls">
+                <button class="ctrl-btn" title="@(_isDark ? T("themeToTitleLight") : T("themeToTitle"))"
+                        @onclick="ToggleTheme">
+                    @(_isDark ? "☀️" : "🌙")
+                </button>
+                <div class="lang-switch">
+                    <button class="lang-opt @(_lang == AppLang.It ? "active" : "")"
+                            @onclick="@(() => SetLang(AppLang.It))">IT</button>
+                    <span class="lang-sep">/</span>
+                    <button class="lang-opt @(_lang == AppLang.En ? "active" : "")"
+                            @onclick="@(() => SetLang(AppLang.En))">EN</button>
+                </div>
+            </div>
         </div>
-        <p>
-            Copia intere sezioni (es. <strong>TRAFFICLISTS</strong>) da un profilo Aurora
-            a un altro, senza copia-incolla manuale. Tutto avviene nel tuo browser: i file
-            non vengono caricati da nessuna parte.
-        </p>
+        <p>@((MarkupString)T("intro"))</p>
     </header>
 
     <div class="columns">
         <div class="card">
-            <h4>Profilo sorgente</h4>
-            <p class="hint">Il profilo <em>da cui</em> copiare.</p>
+            <h4>@T("sourceTitle")</h4>
+            <p class="hint">@((MarkupString)T("sourceHint"))</p>
             @if (_source is not null)
             {
                 <div class="file-loaded">
                     <span class="file-check">✓</span>
                     <div class="file-info">
                         <span class="file-name">@_sourceName</span>
-                        <span class="file-meta">@_source.SectionNames.Count() sezioni</span>
+                        <span class="file-meta">@T("secCount", _source.SectionNames.Count())</span>
                     </div>
-                    <button class="btn-reset" title="Carica un altro file"
-                            @onclick="@(() => Reset(isSource: true))">Cambia</button>
+                    <button class="btn-reset" title="@T("changeTitle")" @onclick="ResetSource">@T("change")</button>
                 </div>
             }
             else
@@ -36,130 +47,175 @@
                        @ondragenter="() => _sourceDragOver = true"
                        @ondragleave="() => _sourceDragOver = false"
                        @ondrop="() => _sourceDragOver = false">
-                    <span class="drop-hint">
-                        Trascina qui il file <strong>.cpr</strong><br />o <span class="btn-file">scegli dal disco</span>
-                    </span>
-                    <InputFile OnChange="@(e => LoadFile(e, isSource: true))" accept=".cpr" />
+                    <span class="drop-hint">@((MarkupString)T("dropSource"))</span>
+                    <InputFile OnChange="LoadSource" accept=".cpr" />
                 </label>
             }
         </div>
 
         <div class="card">
-            <h4>Profilo destinazione</h4>
-            <p class="hint">Il profilo <em>in cui</em> incollare.</p>
-            @if (_dest is not null)
+            <div class="card-head">
+                <h4>@T("destTitle")@(_dests.Count > 0 ? $" ({_dests.Count})" : "")</h4>
+                @if (_dests.Count > 1)
+                {
+                    <button class="link-btn" @onclick="ClearAllDests">@T("clearAllDests")</button>
+                }
+            </div>
+            <p class="hint">@((MarkupString)T("destHint"))</p>
+
+            @if (_dests.Count > 0)
             {
-                <div class="file-loaded">
-                    <span class="file-check">✓</span>
-                    <div class="file-info">
-                        <span class="file-name">@_destName</span>
-                        <span class="file-meta">@_dest.SectionNames.Count() sezioni</span>
-                    </div>
-                    <button class="btn-reset" title="Carica un altro file"
-                            @onclick="@(() => Reset(isSource: false))">Cambia</button>
-                </div>
+                <ul class="dest-list">
+                    @foreach (var d in _dests)
+                    {
+                        <li class="file-loaded" @key="d.Id">
+                            <span class="file-check">✓</span>
+                            <div class="file-info">
+                                <span class="file-name">@d.Name</span>
+                                <span class="file-meta">@T("secCount", d.Profile.SectionNames.Count())</span>
+                            </div>
+                            <button class="btn-reset" title="@T("removeTitle")"
+                                    @onclick="@(() => RemoveDest(d.Id))">@T("remove")</button>
+                        </li>
+                    }
+                </ul>
             }
-            else
-            {
-                <label class="file-drop @(_destDragOver ? "dragover" : "")"
-                       @ondragenter="() => _destDragOver = true"
-                       @ondragleave="() => _destDragOver = false"
-                       @ondrop="() => _destDragOver = false">
-                    <span class="drop-hint">
-                        Trascina qui il file <strong>.cpr</strong><br />o <span class="btn-file">scegli dal disco</span>
-                    </span>
-                    <InputFile OnChange="@(e => LoadFile(e, isSource: false))" accept=".cpr" />
-                </label>
-            }
+
+            <label class="file-drop @(_destDragOver ? "dragover" : "")"
+                   @ondragenter="() => _destDragOver = true"
+                   @ondragleave="() => _destDragOver = false"
+                   @ondrop="() => _destDragOver = false">
+                <span class="drop-hint">@((MarkupString)T("dropDest"))</span>
+                @* @key forces a fresh <input> after each load/remove so the next drop
+                   always fires OnChange (Blazor reuses the element otherwise). *@
+                <InputFile @key="_destInputKey" OnChange="LoadDests" accept=".cpr" multiple />
+            </label>
         </div>
     </div>
 
-    @if (_source is not null && _dest is not null)
+    @if (_source is not null && _dests.Count > 0)
     {
+        var warnings = BuildWarnings();
+        @if (warnings.Count > 0)
+        {
+            <div class="warnings">
+                <strong>@T("warningsTitle")</strong>
+                <ul>
+                    @foreach (var w in warnings)
+                    {
+                        <li>@w</li>
+                    }
+                </ul>
+            </div>
+        }
+
         <section class="sections">
-            <h4>Sezioni da copiare</h4>
+            <h4>@T("sectionsTitle")</h4>
             <div class="sections-toolbar">
-                <button class="link-btn" @onclick="SelectAll">Seleziona tutto</button>
-                <button class="link-btn" @onclick="ClearAll">Deseleziona tutto</button>
-                <span class="selected-count">@_selected.Count selezionate</span>
+                <input class="section-search" type="search" placeholder="@T("searchPlaceholder")"
+                       value="@_sectionFilter" @oninput="OnFilterInput"
+                       @onkeydown:stopPropagation="true" />
+                <button class="link-btn" @onclick="SelectAll">@T("selectAll")</button>
+                <button class="link-btn" @onclick="ClearAll">@T("clearAll")</button>
+                <span class="selected-count">@T("selectedCount", _selected.Count)</span>
             </div>
 
             <div class="section-grid">
-                @foreach (var name in _sourceSectionNames)
+                @foreach (var name in VisibleSectionNames())
                 {
-                    var isNew = _dest.FindSection(name) is null;
-                    <label class="section-item @(isNew ? "only-source" : "")">
+                    var srcSec = _source.FindSection(name)!;
+                    var isNewAll = _dests.All(d => d.Profile.FindSection(name) is null);
+                    var isSameAll = IsIdenticalInAll(name);
+                    <label class="section-item @(_selected.Contains(name) ? "checked" : "")" title="@name">
                         <input type="checkbox"
                                checked="@_selected.Contains(name)"
                                @onchange="@(e => Toggle(name, (bool)e.Value!))" />
-                        <span>@name</span>
-                        @if (isNew)
-                        {
-                            <span class="badge-new" title="Assente nel destinazione: verrà aggiunta in fondo">NEW</span>
-                        }
+                        <span class="section-name @(isNewAll ? "only-source" : "")">@name</span>
+                        <span class="section-tags">
+                            @if (isNewAll)
+                            {
+                                <span class="badge-new" title="@T("newBadgeTitle")">NEW</span>
+                            }
+                            else if (isSameAll)
+                            {
+                                <span class="badge-same" title="@T("badgeSameTitle")">@T("badgeSame")</span>
+                            }
+                            <span class="section-meta">@T("secMeta", SectionLineCount(srcSec))</span>
+                        </span>
                     </label>
+                }
+                @if (!VisibleSectionNames().Any())
+                {
+                    <span class="no-match">@T("noMatch")</span>
                 }
             </div>
 
             @if (_selected.Count > 0)
             {
                 <div class="preview">
-                    <h5>Anteprima delle modifiche</h5>
-                    <p class="hint">
-                        A sinistra il testo che verrà copiato dal sorgente; a destra ciò che
-                        sarà sostituito nel destinazione.
-                    </p>
+                    <h5>@T("previewTitle")</h5>
+                    <p class="hint">@((MarkupString)T("previewHint", _dests.Count))</p>
                     @foreach (var name in _sourceSectionNames.Where(_selected.Contains))
                     {
-                        var srcSection = _source.FindSection(name);
-                        var dstSection = _dest.FindSection(name);
+                        var srcSection = _source.FindSection(name)!;
                         <div class="preview-block">
                             <div class="preview-title">[@name]</div>
-                            <div class="preview-cols">
-                                <div class="preview-pane">
-                                    <div class="preview-label from">Da copiare — @_sourceName</div>
-                                    <pre>@srcSection?.RawText</pre>
-                                </div>
-                                <div class="preview-pane">
-                                    <div class="preview-label to">
+                            @foreach (var d in _dests)
+                            {
+                                var dstSection = d.Profile.FindSection(name);
+                                var identical = dstSection is not null && dstSection.RawText == srcSection.RawText;
+                                <details class="diff-dest" open="@(_dests.Count == 1)">
+                                    <summary>
+                                        <span class="diff-dest-name">@d.Name</span>
                                         @if (dstSection is null)
                                         {
-                                            <span>Assente nel destinazione — verrà aggiunta in fondo</span>
+                                            <span class="badge-new">NEW</span>
                                         }
-                                        else
+                                        else if (identical)
                                         {
-                                            <span>Verrà sovrascritto — @_destName</span>
+                                            <span class="badge-same">@T("badgeSame")</span>
                                         }
-                                    </div>
-                                    @if (dstSection is null)
+                                    </summary>
+                                    @if (identical)
                                     {
-                                        <pre class="empty">(nessun contenuto da sostituire)</pre>
+                                        <div class="diff-identical">@T("identicalNoChange")</div>
                                     }
                                     else
                                     {
-                                        <pre>@dstSection.RawText</pre>
+                                        IEnumerable<string> from = dstSection is null ? Array.Empty<string>() : dstSection.Lines;
+                                        <div class="diff">
+                                            @foreach (var dl in LineDiff.Diff(from, srcSection.Lines))
+                                            {
+                                                <div class="diff-line @DiffClass(dl.Kind)">@DiffPrefix(dl.Kind)@dl.Text</div>
+                                            }
+                                        </div>
                                     }
-                                </div>
-                            </div>
+                                </details>
+                            }
                         </div>
                     }
                 </div>
             }
 
             <div class="actions">
-                <button class="btn-primary" disabled="@(_selected.Count == 0)" @onclick="DoSwap">
-                    Copia e scarica
+                <button class="btn-primary" disabled="@(_selected.Count == 0 || _busy)" @onclick="DoSwap">
+                    @if (_busy)
+                    {
+                        <span class="spinner"></span> <span>@T("busy")</span>
+                    }
+                    else
+                    {
+                        @T("swapBtn", _dests.Count)
+                    }
                 </button>
-                <span class="selected-count">
-                    Output: <strong>@_destName</strong> con le sezioni selezionate sostituite.
-                </span>
+                <span class="selected-count">@T("outputInfo", _dests.Count)</span>
             </div>
         </section>
     }
 
     @if (_status is not null)
     {
-        <div class="status @_statusKind">
+        <div id="status" class="status @_statusKind">
             @_status
             @if (_details.Count > 0)
             {
@@ -174,77 +230,222 @@
     }
 
     <footer class="app-footer">
-        Le sezioni non selezionate restano identiche byte-per-byte. Colori e font seguono il
-        <a href="https://brand.ivao.aero" target="_blank" rel="noopener">brand IVAO</a>.
+        @T("footer")
+        <a href="https://brand.ivao.aero" target="_blank" rel="noopener">@T("footerBrand")</a>.
     </footer>
 </div>
 
 @code {
+    private sealed class DestProfile
+    {
+        public Guid Id { get; } = Guid.NewGuid();
+        public required CprProfile Profile { get; init; }
+        public required string Name { get; init; }
+    }
+
     private CprProfile? _source;
-    private CprProfile? _dest;
     private string? _sourceName;
-    private string? _destName;
+    private readonly List<DestProfile> _dests = new();
+
     private bool _sourceDragOver;
     private bool _destDragOver;
     private List<string> _sourceSectionNames = new();
     private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
+    private string _sectionFilter = "";
+    private int _destInputKey;
 
     private string? _status;
     private string _statusKind = "ok";
     private readonly List<string> _details = new();
+    private bool _busy;
+
+    private AppLang _lang = AppLang.It;
+    private bool _isDark;
 
     // Cap uploads at a sane size for these text profiles (~1 MB is already huge for .cpr).
     private const long MaxFileBytes = 4 * 1024 * 1024;
 
-    private async Task LoadFile(InputFileChangeEventArgs e, bool isSource)
+    // Shorthand for localized lookups in markup.
+    private string T(string key) => Loc.T(_lang, key);
+    private string T(string key, params object[] args) => Loc.T(_lang, key, args);
+
+    // --- section helpers -----------------------------------------------------
+
+    private IEnumerable<string> VisibleSectionNames() =>
+        string.IsNullOrWhiteSpace(_sectionFilter)
+            ? _sourceSectionNames
+            : _sourceSectionNames.Where(n => n.Contains(_sectionFilter, StringComparison.OrdinalIgnoreCase));
+
+    // Line count excluding the "[NAME]" header line.
+    private static int SectionLineCount(CprSection s) => s.Lines.Count - (s.Name is null ? 0 : 1);
+
+    private bool IsIdenticalInAll(string name)
+    {
+        var src = _source!.FindSection(name);
+        if (src is null) return false;
+        return _dests.All(d => d.Profile.FindSection(name) is { } dst && dst.RawText == src.RawText);
+    }
+
+    private static string DiffClass(DiffKind k) => k switch
+    {
+        DiffKind.Added => "diff-add",
+        DiffKind.Removed => "diff-del",
+        _ => "diff-eq"
+    };
+
+    private static string DiffPrefix(DiffKind k) => k switch
+    {
+        DiffKind.Added => "+ ",
+        DiffKind.Removed => "- ",
+        _ => "  "
+    };
+
+    private List<string> BuildWarnings()
+    {
+        var list = new List<string>();
+        if (_source is null) return list;
+
+        var srcText = _source.Serialize();
+        foreach (var d in _dests)
+        {
+            if (string.Equals(d.Name, _sourceName, StringComparison.OrdinalIgnoreCase))
+                list.Add(T("warnSameName", d.Name));
+            if (d.Profile.Serialize() == srcText)
+                list.Add(T("warnSameContent", d.Name));
+        }
+
+        // Duplicate destinations (same name + identical content).
+        foreach (var grp in _dests
+            .GroupBy(d => (d.Name, d.Profile.Serialize()))
+            .Where(g => g.Count() > 1))
+        {
+            list.Add(T("warnDuplicate", grp.Key.Name));
+        }
+
+        return list;
+    }
+
+    // --- preferences ---------------------------------------------------------
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        // Restore persisted language + theme (theme's <html> attribute is already set
+        // by the inline boot script; here we only sync our own state + button labels).
+        var lang = await JS.InvokeAsync<string>("appPrefs.getLang");
+        var theme = await JS.InvokeAsync<string>("appPrefs.getTheme");
+        var newLang = string.Equals(lang, "en", StringComparison.OrdinalIgnoreCase) ? AppLang.En : AppLang.It;
+        var newDark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
+        if (newLang != _lang || newDark != _isDark)
+        {
+            _lang = newLang;
+            _isDark = newDark;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleTheme()
+    {
+        _isDark = !_isDark;
+        await JS.InvokeVoidAsync("appPrefs.setTheme", _isDark ? "dark" : "light");
+    }
+
+    private async Task SetLang(AppLang lang)
+    {
+        if (_lang == lang) return;
+        _lang = lang;
+        await JS.InvokeVoidAsync("appPrefs.setLang", lang == AppLang.En ? "en" : "it");
+    }
+
+    // --- keyboard shortcuts --------------------------------------------------
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Enter" when _source is not null && _dests.Count > 0 && _selected.Count > 0 && !_busy:
+                await DoSwap();
+                break;
+            case "Escape":
+                ClearAll();
+                break;
+        }
+    }
+
+    // --- file loading --------------------------------------------------------
+
+    private async Task LoadSource(InputFileChangeEventArgs e)
     {
         ResetStatus();
         var file = e.File;
         try
         {
-            using var stream = file.OpenReadStream(MaxFileBytes);
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            var profile = CprProfile.Load(ms.ToArray());
-
-            if (isSource)
-            {
-                _source = profile;
-                _sourceName = file.Name;
-            }
-            else
-            {
-                _dest = profile;
-                _destName = file.Name;
-            }
-
+            _source = await ReadProfile(file);
+            _sourceName = file.Name;
             RefreshSectionList();
         }
         catch (IOException)
         {
-            SetStatus("err", $"Il file «{file.Name}» supera il limite di {MaxFileBytes / (1024 * 1024)} MB.");
+            SetStatus("err", T("errTooBig", file.Name, MaxFileBytes / (1024 * 1024)));
         }
         catch (Exception ex)
         {
-            SetStatus("err", $"Impossibile leggere «{file.Name}»: {ex.Message}");
+            SetStatus("err", T("errRead", file.Name, ex.Message));
         }
     }
 
-    private void Reset(bool isSource)
+    private async Task LoadDests(InputFileChangeEventArgs e)
     {
         ResetStatus();
-        if (isSource)
+        foreach (var file in e.GetMultipleFiles(maximumFileCount: 50))
         {
-            _source = null;
-            _sourceName = null;
-            _sourceSectionNames.Clear();
-            _selected.Clear();
+            try
+            {
+                var profile = await ReadProfile(file);
+                _dests.Add(new DestProfile { Profile = profile, Name = file.Name });
+            }
+            catch (IOException)
+            {
+                SetStatus("err", T("errTooBig", file.Name, MaxFileBytes / (1024 * 1024)));
+            }
+            catch (Exception ex)
+            {
+                SetStatus("err", T("errRead", file.Name, ex.Message));
+            }
         }
-        else
-        {
-            _dest = null;
-            _destName = null;
-        }
+        _destInputKey++;
+    }
+
+    private static async Task<CprProfile> ReadProfile(IBrowserFile file)
+    {
+        using var stream = file.OpenReadStream(MaxFileBytes);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        return CprProfile.Load(ms.ToArray());
+    }
+
+    private void ResetSource()
+    {
+        ResetStatus();
+        _source = null;
+        _sourceName = null;
+        _sourceSectionNames.Clear();
+        _selected.Clear();
+        _sectionFilter = "";
+    }
+
+    private void RemoveDest(Guid id)
+    {
+        ResetStatus();
+        _dests.RemoveAll(d => d.Id == id);
+        _destInputKey++;
+    }
+
+    private void ClearAllDests()
+    {
+        ResetStatus();
+        _dests.Clear();
+        _destInputKey++;
     }
 
     private void RefreshSectionList()
@@ -254,52 +455,95 @@
         _selected.RemoveWhere(s => !_sourceSectionNames.Contains(s, StringComparer.OrdinalIgnoreCase));
     }
 
+    private void OnFilterInput(ChangeEventArgs e) => _sectionFilter = e.Value?.ToString() ?? "";
+
     private void Toggle(string name, bool on)
     {
         if (on) _selected.Add(name); else _selected.Remove(name);
     }
 
+    // Select all currently-visible (filtered) sections.
     private void SelectAll()
     {
-        foreach (var n in _sourceSectionNames) _selected.Add(n);
+        foreach (var n in VisibleSectionNames()) _selected.Add(n);
     }
 
     private void ClearAll() => _selected.Clear();
 
+    // --- swap ---------------------------------------------------------------
+
     private async Task DoSwap()
     {
         ResetStatus();
-        if (_source is null || _dest is null || _selected.Count == 0) return;
+        if (_source is null || _dests.Count == 0 || _selected.Count == 0) return;
+
+        var names = _sourceSectionNames.Where(_selected.Contains).ToList();
+
+        _busy = true;
+        StateHasChanged();
+        await Task.Yield(); // let the spinner render before the (synchronous) zip work
 
         try
         {
-            var result = ProfileSwapper.SwapSections(
-                _dest, _source, _sourceSectionNames.Where(_selected.Contains),
-                out var outcomes);
-
-            var bytes = result.ToBytes();
-            var base64 = Convert.ToBase64String(bytes);
-            await JS.InvokeVoidAsync("downloadFileFromBase64", _destName, base64);
-
-            var replaced = outcomes.Count(o => o.WasReplaced);
-            var appended = outcomes.Count(o => !o.WasReplaced);
             _details.Clear();
-            _details.AddRange(outcomes.Select(o =>
-                $"[{o.SectionName}] — {(o.WasReplaced ? "sostituita" : "aggiunta in fondo (assente nel destinazione)")}"));
+            int totalAppended = 0;
+            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var msg = $"Fatto: {outcomes.Count} sezioni copiate in «{_destName}».";
-            if (appended > 0)
-                SetStatus("warn", msg + $" {replaced} sostituite, {appended} aggiunte in fondo.");
-            else
-                SetStatus("ok", msg);
+            using var zipMs = new MemoryStream();
+            using (var zip = new ZipArchive(zipMs, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                foreach (var d in _dests)
+                {
+                    var result = ProfileSwapper.SwapSections(d.Profile, _source, names, out var outcomes);
+
+                    // Avoid clobbering entries when two destinations share a filename.
+                    var entryName = UniqueEntryName(d.Name, usedNames);
+                    var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+                    using (var es = entry.Open())
+                    {
+                        var bytes = result.ToBytes();
+                        es.Write(bytes, 0, bytes.Length);
+                    }
+
+                    var replaced = outcomes.Count(o => o.WasReplaced);
+                    var appended = outcomes.Count(o => !o.WasReplaced);
+                    totalAppended += appended;
+                    _details.Add(T("detailLine", entryName, outcomes.Count, replaced, appended));
+                }
+            }
+
+            var zipName = $"profili-aggiornati-{DateTime.Now:yyyyMMdd-HHmmss}.zip";
+            var zipBase64 = Convert.ToBase64String(zipMs.ToArray());
+            await JS.InvokeVoidAsync("downloadFileFromBase64", zipName, zipBase64);
+
+            SetStatus(totalAppended > 0 ? "warn" : "ok", T("done", names.Count, _dests.Count, zipName));
         }
         catch (SectionNotFoundException ex)
         {
-            SetStatus("err", $"La sezione [{ex.SectionName}] non è presente nel profilo sorgente.");
+            SetStatus("err", T("errSectionMissing", ex.SectionName));
         }
         catch (Exception ex)
         {
-            SetStatus("err", $"Errore durante la copia: {ex.Message}");
+            SetStatus("err", T("errSwap", ex.Message));
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        await JS.InvokeVoidAsync("appPrefs.scrollToId", "status");
+    }
+
+    // Make a zip-safe, non-colliding entry name (append " (2)", " (3)"… on duplicates).
+    private static string UniqueEntryName(string name, HashSet<string> used)
+    {
+        if (used.Add(name)) return name;
+        var ext = Path.GetExtension(name);
+        var stem = Path.GetFileNameWithoutExtension(name);
+        for (int i = 2; ; i++)
+        {
+            var candidate = $"{stem} ({i}){ext}";
+            if (used.Add(candidate)) return candidate;
         }
     }
 
