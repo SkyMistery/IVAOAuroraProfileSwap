@@ -1,0 +1,318 @@
+@namespace AuroraProfileSwapper.Web.Pages
+@inject IJSRuntime JS
+
+<div class="page">
+    <header class="app-header">
+        <div class="app-title">
+            <img class="app-logo" src="img/it-symbol.svg" alt="IVAO Italia" />
+            <h1>Aurora Profile Swapper</h1>
+        </div>
+        <p>
+            Copia intere sezioni (es. <strong>TRAFFICLISTS</strong>) da un profilo Aurora
+            a un altro, senza copia-incolla manuale. Tutto avviene nel tuo browser: i file
+            non vengono caricati da nessuna parte.
+        </p>
+    </header>
+
+    <div class="columns">
+        <div class="card">
+            <h4>Profilo sorgente</h4>
+            <p class="hint">Il profilo <em>da cui</em> copiare.</p>
+            @if (_source is not null)
+            {
+                <div class="file-loaded">
+                    <span class="file-check">✓</span>
+                    <div class="file-info">
+                        <span class="file-name">@_sourceName</span>
+                        <span class="file-meta">@_source.SectionNames.Count() sezioni</span>
+                    </div>
+                    <button class="btn-reset" title="Carica un altro file"
+                            @onclick="@(() => Reset(isSource: true))">Cambia</button>
+                </div>
+            }
+            else
+            {
+                <label class="file-drop @(_sourceDragOver ? "dragover" : "")"
+                       @ondragenter="() => _sourceDragOver = true"
+                       @ondragleave="() => _sourceDragOver = false"
+                       @ondrop="() => _sourceDragOver = false">
+                    <span class="drop-hint">
+                        Trascina qui il file <strong>.cpr</strong><br />o <span class="btn-file">scegli dal disco</span>
+                    </span>
+                    <InputFile OnChange="@(e => LoadFile(e, isSource: true))" accept=".cpr" />
+                </label>
+            }
+        </div>
+
+        <div class="card">
+            <h4>Profilo destinazione</h4>
+            <p class="hint">Il profilo <em>in cui</em> incollare.</p>
+            @if (_dest is not null)
+            {
+                <div class="file-loaded">
+                    <span class="file-check">✓</span>
+                    <div class="file-info">
+                        <span class="file-name">@_destName</span>
+                        <span class="file-meta">@_dest.SectionNames.Count() sezioni</span>
+                    </div>
+                    <button class="btn-reset" title="Carica un altro file"
+                            @onclick="@(() => Reset(isSource: false))">Cambia</button>
+                </div>
+            }
+            else
+            {
+                <label class="file-drop @(_destDragOver ? "dragover" : "")"
+                       @ondragenter="() => _destDragOver = true"
+                       @ondragleave="() => _destDragOver = false"
+                       @ondrop="() => _destDragOver = false">
+                    <span class="drop-hint">
+                        Trascina qui il file <strong>.cpr</strong><br />o <span class="btn-file">scegli dal disco</span>
+                    </span>
+                    <InputFile OnChange="@(e => LoadFile(e, isSource: false))" accept=".cpr" />
+                </label>
+            }
+        </div>
+    </div>
+
+    @if (_source is not null && _dest is not null)
+    {
+        <section class="sections">
+            <h4>Sezioni da copiare</h4>
+            <div class="sections-toolbar">
+                <button class="link-btn" @onclick="SelectAll">Seleziona tutto</button>
+                <button class="link-btn" @onclick="ClearAll">Deseleziona tutto</button>
+                <span class="selected-count">@_selected.Count selezionate</span>
+            </div>
+
+            <div class="section-grid">
+                @foreach (var name in _sourceSectionNames)
+                {
+                    var isNew = _dest.FindSection(name) is null;
+                    <label class="section-item @(isNew ? "only-source" : "")">
+                        <input type="checkbox"
+                               checked="@_selected.Contains(name)"
+                               @onchange="@(e => Toggle(name, (bool)e.Value!))" />
+                        <span>@name</span>
+                        @if (isNew)
+                        {
+                            <span class="badge-new" title="Assente nel destinazione: verrà aggiunta in fondo">NEW</span>
+                        }
+                    </label>
+                }
+            </div>
+
+            @if (_selected.Count > 0)
+            {
+                <div class="preview">
+                    <h5>Anteprima delle modifiche</h5>
+                    <p class="hint">
+                        A sinistra il testo che verrà copiato dal sorgente; a destra ciò che
+                        sarà sostituito nel destinazione.
+                    </p>
+                    @foreach (var name in _sourceSectionNames.Where(_selected.Contains))
+                    {
+                        var srcSection = _source.FindSection(name);
+                        var dstSection = _dest.FindSection(name);
+                        <div class="preview-block">
+                            <div class="preview-title">[@name]</div>
+                            <div class="preview-cols">
+                                <div class="preview-pane">
+                                    <div class="preview-label from">Da copiare — @_sourceName</div>
+                                    <pre>@srcSection?.RawText</pre>
+                                </div>
+                                <div class="preview-pane">
+                                    <div class="preview-label to">
+                                        @if (dstSection is null)
+                                        {
+                                            <span>Assente nel destinazione — verrà aggiunta in fondo</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Verrà sovrascritto — @_destName</span>
+                                        }
+                                    </div>
+                                    @if (dstSection is null)
+                                    {
+                                        <pre class="empty">(nessun contenuto da sostituire)</pre>
+                                    }
+                                    else
+                                    {
+                                        <pre>@dstSection.RawText</pre>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="actions">
+                <button class="btn-primary" disabled="@(_selected.Count == 0)" @onclick="DoSwap">
+                    Copia e scarica
+                </button>
+                <span class="selected-count">
+                    Output: <strong>@_destName</strong> con le sezioni selezionate sostituite.
+                </span>
+            </div>
+        </section>
+    }
+
+    @if (_status is not null)
+    {
+        <div class="status @_statusKind">
+            @_status
+            @if (_details.Count > 0)
+            {
+                <ul>
+                    @foreach (var d in _details)
+                    {
+                        <li>@d</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+
+    <footer class="app-footer">
+        Le sezioni non selezionate restano identiche byte-per-byte. Colori e font seguono il
+        <a href="https://brand.ivao.aero" target="_blank" rel="noopener">brand IVAO</a>.
+    </footer>
+</div>
+
+@code {
+    private CprProfile? _source;
+    private CprProfile? _dest;
+    private string? _sourceName;
+    private string? _destName;
+    private bool _sourceDragOver;
+    private bool _destDragOver;
+    private List<string> _sourceSectionNames = new();
+    private readonly HashSet<string> _selected = new(StringComparer.OrdinalIgnoreCase);
+
+    private string? _status;
+    private string _statusKind = "ok";
+    private readonly List<string> _details = new();
+
+    // Cap uploads at a sane size for these text profiles (~1 MB is already huge for .cpr).
+    private const long MaxFileBytes = 4 * 1024 * 1024;
+
+    private async Task LoadFile(InputFileChangeEventArgs e, bool isSource)
+    {
+        ResetStatus();
+        var file = e.File;
+        try
+        {
+            using var stream = file.OpenReadStream(MaxFileBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var profile = CprProfile.Load(ms.ToArray());
+
+            if (isSource)
+            {
+                _source = profile;
+                _sourceName = file.Name;
+            }
+            else
+            {
+                _dest = profile;
+                _destName = file.Name;
+            }
+
+            RefreshSectionList();
+        }
+        catch (IOException)
+        {
+            SetStatus("err", $"Il file «{file.Name}» supera il limite di {MaxFileBytes / (1024 * 1024)} MB.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("err", $"Impossibile leggere «{file.Name}»: {ex.Message}");
+        }
+    }
+
+    private void Reset(bool isSource)
+    {
+        ResetStatus();
+        if (isSource)
+        {
+            _source = null;
+            _sourceName = null;
+            _sourceSectionNames.Clear();
+            _selected.Clear();
+        }
+        else
+        {
+            _dest = null;
+            _destName = null;
+        }
+    }
+
+    private void RefreshSectionList()
+    {
+        if (_source is null) return;
+        _sourceSectionNames = _source.SectionNames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        _selected.RemoveWhere(s => !_sourceSectionNames.Contains(s, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private void Toggle(string name, bool on)
+    {
+        if (on) _selected.Add(name); else _selected.Remove(name);
+    }
+
+    private void SelectAll()
+    {
+        foreach (var n in _sourceSectionNames) _selected.Add(n);
+    }
+
+    private void ClearAll() => _selected.Clear();
+
+    private async Task DoSwap()
+    {
+        ResetStatus();
+        if (_source is null || _dest is null || _selected.Count == 0) return;
+
+        try
+        {
+            var result = ProfileSwapper.SwapSections(
+                _dest, _source, _sourceSectionNames.Where(_selected.Contains),
+                out var outcomes);
+
+            var bytes = result.ToBytes();
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("downloadFileFromBase64", _destName, base64);
+
+            var replaced = outcomes.Count(o => o.WasReplaced);
+            var appended = outcomes.Count(o => !o.WasReplaced);
+            _details.Clear();
+            _details.AddRange(outcomes.Select(o =>
+                $"[{o.SectionName}] — {(o.WasReplaced ? "sostituita" : "aggiunta in fondo (assente nel destinazione)")}"));
+
+            var msg = $"Fatto: {outcomes.Count} sezioni copiate in «{_destName}».";
+            if (appended > 0)
+                SetStatus("warn", msg + $" {replaced} sostituite, {appended} aggiunte in fondo.");
+            else
+                SetStatus("ok", msg);
+        }
+        catch (SectionNotFoundException ex)
+        {
+            SetStatus("err", $"La sezione [{ex.SectionName}] non è presente nel profilo sorgente.");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("err", $"Errore durante la copia: {ex.Message}");
+        }
+    }
+
+    private void SetStatus(string kind, string message)
+    {
+        _statusKind = kind;
+        _status = message;
+    }
+
+    private void ResetStatus()
+    {
+        _status = null;
+        _statusKind = "ok";
+        _details.Clear();
+    }
+}

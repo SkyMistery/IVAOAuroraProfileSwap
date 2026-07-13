@@ -1,0 +1,309 @@
+/* ---------------------------------------------------------------------------
+   Aurora Profile Swapper — IVAO brand styling
+   Colours: https://brand.ivao.aero/colors/   Fonts: https://brand.ivao.aero/font/
+--------------------------------------------------------------------------- */
+:root {
+    /* Primary + secondary */
+    --ivao-blue: #0D2C99;
+    --ivao-grey: #D7D7DC;
+    --ivao-light-blue: #3C55AC;
+    /* Semantic (states/interactions only) */
+    --ivao-green: #2EC662;
+    --ivao-yellow: #F9CC2C;
+    --ivao-red: #E93434;
+    --ivao-info: #7EA2D6;
+    /* Neutrals */
+    --ivao-bg: #f4f5f9;
+    --ivao-surface: #ffffff;
+    --ivao-text: #1c1e26;
+    --ivao-border: #d7d7dc;
+
+    --font-head: "Nunito Sans", system-ui, sans-serif;
+    --font-body: "Poppins", system-ui, sans-serif;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(13, 44, 153, .08), 0 6px 20px rgba(13, 44, 153, .06);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--ivao-bg);
+    color: var(--ivao-text);
+    font-family: var(--font-body);
+    font-size: 16px; /* 1rem */
+    line-height: 1.5;
+    text-align: left;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-head);
+    color: var(--ivao-blue);
+    text-align: left;
+    margin: 0 0 .5rem;
+    line-height: 1.2;
+}
+h1 { font-size: 2.50rem; font-weight: 800; }
+h2 { font-size: 2.00rem; font-weight: 700; }
+h3 { font-size: 1.75rem; font-weight: 700; }
+h4 { font-size: 1.50rem; font-weight: 600; color: var(--ivao-light-blue); }
+h5 { font-size: 1.25rem; font-weight: 600; color: var(--ivao-light-blue); }
+h6 { font-size: 1.00rem; font-weight: 600; color: var(--ivao-light-blue); }
+
+.loading { padding: 2rem; font-family: var(--font-body); color: var(--ivao-light-blue); }
+
+.page { max-width: 1600px; margin: 0 auto; padding: 2rem clamp(1.25rem, 4vw, 3rem) 4rem; }
+
+.app-header { margin-bottom: 1.5rem; }
+.app-title { display: flex; align-items: center; gap: 1rem; }
+.app-title h1 { margin: 0; }
+.app-logo { height: 5.5rem; width: auto; flex: 0 0 auto; }
+.app-header p { margin: .5rem 0 0; color: #4a4d5a; max-width: 60ch; }
+
+/* Two-column source/destination layout */
+.columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    margin-top: 1.5rem;
+}
+@media (max-width: 760px) { .columns { grid-template-columns: 1fr; } }
+
+.card {
+    background: var(--ivao-surface);
+    border: 1px solid var(--ivao-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 1.25rem;
+}
+/* Loaded (locked) state: file chosen, zone replaced by a summary + reset. */
+.file-loaded {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-height: 130px;
+    margin-top: .25rem;
+    padding: 1rem 1.25rem;
+    border: 2px solid var(--ivao-green);
+    border-radius: var(--radius);
+    background: #eafaf0;
+}
+.file-loaded .file-check {
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--ivao-green);
+    color: #fff;
+    font-weight: 700;
+}
+.file-loaded .file-info { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.file-loaded .file-name {
+    font-family: var(--font-body);
+    font-weight: 600;
+    color: var(--ivao-blue);
+    word-break: break-all;
+}
+.file-loaded .file-meta { font-size: .85rem; color: var(--ivao-light-blue); }
+.btn-reset {
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid var(--ivao-light-blue);
+    border-radius: var(--radius);
+    color: var(--ivao-blue);
+    font-family: var(--font-body);
+    font-size: .85rem;
+    padding: .35rem .75rem;
+    cursor: pointer;
+    transition: background .15s;
+}
+.btn-reset:hover { background: #eef1fb; }
+
+/* File input / drop zone */
+.file-drop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    margin-top: .25rem;
+    min-height: 130px;
+    padding: 1.5rem 1rem;
+    border: 2px dashed var(--ivao-light-blue);
+    border-radius: var(--radius);
+    text-align: center;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.file-drop:hover { background: #eef1fb; }
+.file-drop.dragover {
+    background: #e3e9fa;
+    border-color: var(--ivao-blue);
+    border-style: solid;
+}
+/* Transparent native input covers the whole zone so real drag&drop lands on it. */
+.file-drop input[type=file] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+/* Hint sits under the input; ignore pointer so drag events reach the input cleanly. */
+.file-drop .drop-hint {
+    pointer-events: none;
+    color: var(--ivao-blue);
+    font-family: var(--font-body);
+    font-size: .95rem;
+}
+.file-drop .btn-file { color: var(--ivao-light-blue); text-decoration: underline; font-weight: 600; }
+
+/* Section list */
+.sections { margin-top: 1.5rem; }
+.sections-toolbar {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    margin-bottom: .75rem;
+    flex-wrap: wrap;
+}
+.link-btn {
+    background: none;
+    border: none;
+    color: var(--ivao-light-blue);
+    font-family: var(--font-body);
+    font-size: .9rem;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+}
+.section-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: .4rem .9rem;
+    background: var(--ivao-surface);
+    border: 1px solid var(--ivao-border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    max-height: 340px;
+    overflow-y: auto;
+}
+.section-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .3rem .4rem;
+    border-radius: 6px;
+    font-size: .95rem;
+}
+.section-item:hover { background: #f4f5f9; }
+.section-item input { accent-color: var(--ivao-blue); width: 16px; height: 16px; }
+.section-item.only-source { color: var(--ivao-light-blue); }
+.badge-new {
+    font-size: .68rem;
+    font-weight: 600;
+    background: var(--ivao-info);
+    color: #fff;
+    border-radius: 4px;
+    padding: .05rem .35rem;
+}
+
+/* Actions */
+/* Preview: source (to copy) vs destination (to overwrite) */
+.preview { margin-top: 1.75rem; }
+.preview > .hint { margin: .1rem 0 1rem; }
+.preview-block { margin-bottom: 1.25rem; }
+.preview-title {
+    font-family: var(--font-head);
+    font-weight: 700;
+    color: var(--ivao-blue);
+    margin-bottom: .4rem;
+}
+.preview-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+@media (max-width: 760px) { .preview-cols { grid-template-columns: 1fr; } }
+.preview-pane {
+    border: 1px solid var(--ivao-border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--ivao-surface);
+}
+.preview-label {
+    font-family: var(--font-body);
+    font-size: .8rem;
+    font-weight: 600;
+    padding: .45rem .75rem;
+    word-break: break-all;
+    border-bottom: 1px solid var(--ivao-border);
+}
+.preview-label.from { background: #eafaf0; color: #12622f; }
+.preview-label.to   { background: #fff8e1; color: #7a5a00; }
+.preview-pane pre {
+    margin: 0;
+    padding: .75rem;
+    max-height: 340px;
+    overflow: auto;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: .82rem;
+    line-height: 1.45;
+    white-space: pre;
+    tab-size: 4;
+}
+.preview-pane pre.empty { color: #8a8d99; font-style: italic; }
+
+.actions { margin-top: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.btn-primary {
+    background: var(--ivao-blue);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: 1rem;
+    padding: .7rem 1.6rem;
+    cursor: pointer;
+    transition: background .15s, opacity .15s;
+}
+.btn-primary:hover:not(:disabled) { background: var(--ivao-light-blue); }
+.btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+.selected-count { color: #4a4d5a; font-size: .9rem; }
+
+/* Status messages (semantic colours) */
+.status { margin-top: 1.25rem; border-radius: var(--radius); padding: .85rem 1rem; font-size: .95rem; }
+.status.ok    { background: #e7f9ee; color: #12622f; border: 1px solid var(--ivao-green); }
+.status.err   { background: #fdeaea; color: #8f1414; border: 1px solid var(--ivao-red); }
+.status.warn  { background: #fff8e1; color: #7a5a00; border: 1px solid var(--ivao-yellow); }
+.status ul { margin: .4rem 0 0; padding-left: 1.2rem; }
+
+footer.app-footer {
+    margin-top: 3rem;
+    font-size: .82rem;
+    color: #6a6d7a;
+    border-top: 1px solid var(--ivao-border);
+    padding-top: 1rem;
+}
+footer.app-footer a { color: var(--ivao-light-blue); }
+
+/* Blazor default error UI */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--ivao-yellow);
+    color: #3a2c00;
+    padding: .8rem 1.25rem;
+    box-shadow: 0 -1px 4px rgba(0,0,0,.15);
+    z-index: 1000;
+    font-family: var(--font-body);
+}
+#blazor-error-ui .dismiss { cursor: pointer; float: right; }
+#blazor-error-ui .reload { color: var(--ivao-blue); }
+
+.card .hint { margin: .1rem 0 .6rem; font-size: .85rem; color: #6a6d7a; }
